@@ -1,6 +1,6 @@
 import tkinter as tk
-from gameClass import Game
-from colonyClass import Planet, Colony
+from GameClass import Game
+from ColonyClass import Planet, Colony
 
 
 class Header:
@@ -10,11 +10,12 @@ class Header:
 
 
 class SpinBox(tk.Spinbox):
-    def __init__(self, parent, upper):
-        self.text_variable = tk.StringVar(value=upper)
-        tk.Spinbox.__init__(self, master=parent, from_=0, to=upper,
+    def __init__(self, parent, upper_limit):
+        self.text_variable = tk.StringVar(value=upper_limit)
+        tk.Spinbox.__init__(self, master=parent, from_=0, to=upper_limit,
                             textvariable=self.text_variable,
                             state='readonly')
+
         self.bind('<Enter> e', lambda event: self.invoke('buttonup'))
         self.bind('<Enter> d', lambda event: self.invoke('buttondown'))
 
@@ -49,18 +50,14 @@ class ColonyRow:
         self.name_label = tk.Label(master=parent, text=colony.name.capitalize(),
                                    relief=tk.RAISED)
 
-        self.farmers_spinbox = SpinBox(
-            parent,
-            colony.num_farmers + colony.unassigned
-        )
-        self.workers_spinbox = SpinBox(
-            parent,
-            colony.num_workers + colony.unassigned
-        )
-        self.scientists_spinbox = SpinBox(
-            parent,
-            colony.num_scientists + colony.unassigned
-        )
+        self.farmers_spinbox = SpinBox(parent,
+                                       colony.num_farmers + colony.unassigned)
+
+        self.workers_spinbox = SpinBox(parent,
+                                       colony.num_workers + colony.unassigned)
+
+        self.scientists_spinbox = SpinBox(parent,
+                                          colony.num_scientists + colony.unassigned)
 
         self.unassigned_label = tk.Label(
             master=parent,
@@ -97,42 +94,43 @@ class InfoLabel(tk.Label):
 
 class ColonyInfo1(InfoLabel):
     @staticmethod
-    def text(object):
-        cost = Colony.building_data[object.build_queue].cost
+    def text(colony):
+        cost = Colony.building_data[colony.build_queue].cost
 
-        output = (f"Selected: {object.name.capitalize()}\n"
-                  f"Climate: {object.climate.capitalize()}\n"
-                  f"Size: {object.size.capitalize()}\n"
-                  f"Gravity: {object.gravity.capitalize()}\n"
-                  f"Mineral Richness: {object.mineral_richness.capitalize()}\n"
-                  f"Population: {object.cur_pop}\n"
-                  f"Max Pop: {object.max_pop}\n"
-                  f"{object.raw_pop % 1000} + {object.pop_increment}\n"
-                  f"{object.stored_prod}/{cost} + {object.prod}")
+        output = (f"Selected: {colony.name.capitalize()}\n"
+                  f"Climate: {colony.climate.capitalize()}\n"
+                  f"Size: {colony.size.capitalize()}\n"
+                  f"Gravity: {colony.gravity.capitalize()}\n"
+                  f"Mineral Richness: {colony.mineral_richness.capitalize()}\n"
+                  f"Population: {colony.cur_pop}\n"
+                  f"Max Pop: {colony.max_pop}\n"
+                  f"{colony.raw_pop % 1000} + {colony.pop_increment}\n"
+                  f"{colony.stored_prod}/{cost} + {colony.prod}")
         return output
 
 
 class ColonyInfo2(InfoLabel):
     @staticmethod
-    def text(object):
-        output = (f"Selected: {object.name.capitalize()}\n"
-                  f"Food: {object.food}\n"
-                  f"Imported Food: {object.imported_food}\n"
-                  f"Production: {object.prod}\n"
-                  f"Pollution: {object.pollution_penalty}\n"
-                  f"Research: {object.rp}\n"
-                  f"Net BC: {object.bc}\n"
-                  f"Morale: {object.morale_mult}\n"
+    def text(colony):
+        output = (f"Selected: {colony.name.capitalize()}\n"
+                  f"Food: {colony.food}\n"
+                  f"Imported Food: {colony.imported_food}\n"
+                  f"Production: {colony.prod}\n"
+                  f"Pollution: {colony.pollution_penalty}\n"
+                  f"Research: {colony.rp}\n"
+                  f"Net BC: {colony.bc}\n"
+                  f"Morale: {colony.morale_multiplier}\n"
                   )
         return output
 
 
 class ColonyInfo3(InfoLabel):
     @staticmethod
-    def text(object):
+    def text(colony):
         buildings = []
-        for building, value in object.buildings.items():
-            if value and building not in ['terraforming', 'gaiaTransformation']:
+        for building, is_built in colony.buildings.items():
+            if (is_built and building
+                    not in ['terraforming', 'gaiaTransformation']):
                 buildings.append(building)
 
         output = '\n'.join(['Buildings:'] + buildings)
@@ -141,21 +139,20 @@ class ColonyInfo3(InfoLabel):
 
 class GameInfo(InfoLabel):
     @staticmethod
-    def text(object):
+    def text(game):
         return (
-            f'Turn: {object.turn_count}\n'
-            f"Reserve: {object.reserve} \n"
-            f"Income: {object.bc} \n"
-            f"Population: {object.pop}\n"
-            f"Freighters: ({object.avail_freighters}) {object.num_freighters}\n"
-            f"Food: {object.food} \n"
-            f"Research: {object.rp}"
+            f'Turn: {game.turn_count}\n'
+            f"Reserve: {game.reserve} \n"
+            f"Income: {game.bc} \n"
+            f"Population: {game.population}\n"
+            f"Freighters: ({game.avail_freighters}) {game.num_freighters}\n"
+            f"Food: {game.food} \n"
+            f"Research: {game.rp}"
         )
 
 
 class ResearchFieldInfo(InfoLabel):
     @staticmethod
-    # here the input is a game object
     def text(game):
         output = ''
         if game.res_queue is not None:
@@ -454,8 +451,8 @@ class GUI(tk.Tk):
                 for spinbox in colony_row.spinboxes:
                     spinbox['to'] += colony.unassigned
 
-            # if the population of the colony decreased, decrease the spinbox values
-            # until they sum to the colony's population
+            # if the population of the colony decreased, decrease the spinbox
+            # values until they sum to the colony's population
             attributes = ['num_farmers', 'num_workers', 'num_scientists']
             if colony.cur_pop < colony.prev_pop:
                 for spinbox, attr in zip(colony_row.spinboxes, attributes):
@@ -499,9 +496,6 @@ p3 = Planet('huge', 'abundant', 'normal', 'terran')
 c3 = Colony(p3, 'colony3', 2, 2, 2,
             ['automatedFactory', 'hydroponicFarm', 'biospheres'])
 
-p4 = Planet('large', 'abundant', 'normal', 'terran')
-c4 = Colony(p4, 'colony4', 2, 2, 2,
-            ['automatedFactory', 'hydroponicFarm', 'biospheres'])
 
 # starting positions for each research field
 starting_tech = [('const', 6), ('chem', 2), ('soc', 2), ('comp', 3),
