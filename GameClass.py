@@ -1,5 +1,5 @@
-from techTree import tree
-from buildDict import building_data
+from TechTree import tree
+from BuildingDataDictionary import building_data
 import random
 from math import floor
 from tabulate import tabulate
