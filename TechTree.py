@@ -2,8 +2,8 @@
 from collections import namedtuple
 
 # maps level to rp cost
-cost_map = {1: 50, 2: 80, 3: 150, 4: 250, 5: 400, 6: 650, 7: 900, 8: 1150, 9: 1500,
-            10: 2000, 11: 2750, 12: 3500, 13: 4500, 14: 6000, 15: 7500
+cost_map = {1: 50, 2: 80, 3: 150, 4: 250, 5: 400, 6: 650, 7: 900, 8: 1150,
+            9: 1500, 10: 2000, 11: 2750, 12: 3500, 13: 4500, 14: 6000, 15: 7500
             }
 
 ResLevel = namedtuple('ResLevel', ['buildings', 'achievements', 'field', 'level', 'cost'])
@@ -49,7 +49,7 @@ comp = [ResLevel([], [], 'comp', 1, cost_map[1]),
         ResLevel(['pleasureDome'], [], 'comp', 14, cost_map[14])
         ]
 
-# soilEnrichement is treated as a building
+# soilEnrichment is treated as a building
 bio = [ResLevel(['biospheres', 'hydroponicFarm'], [], 'bio', 2, cost_map[2]),
        ResLevel(['cloningCenter', 'soilEnrichment'], [], 'bio', 5, cost_map[5]),
        ResLevel([], ['microbiotics'], 'bio', 7, cost_map[7]),
