@@ -1,5 +1,6 @@
-from gameClass import Game
-from colonyClass import Colony
+from GameClass import Game
+from ColonyClass import Colony
+from BuildingDataDictionary import building_data
 from itertools import product, combinations, starmap
 import random
 from copy import deepcopy
@@ -7,18 +8,17 @@ from multiprocessing import Pool
 
 
 class MonteCarloTreeSearch(Game):
-    food_altering_buildings = [
-        'astroUniversity', 'holoSimulator', 'pleasureDome',
-        'hydroponicFarm', 'soilEnrichment', 'terraforming',
-        'subterraneanFarms', 'weatherController', 'gaiaTransformation',
-        'gravityGenerator'
-    ]
+    food_altering_buildings = ['astroUniversity', 'holoSimulator',
+                               'pleasureDome', 'hydroponicFarm',
+                               'soilEnrichment', 'terraforming',
+                               'subterraneanFarms', 'weatherController',
+                               'gaiaTransformation', 'gravityGenerator']
 
-    def __init__(self, starting_tech_positions, colonies):
-        Game.__init__(self, starting_tech_positions, colonies)
+    def __init__(self, starting_tech_positions, colonies, reserve=200):
+        Game.__init__(self, starting_tech_positions, colonies, reserve)
 
         # variables to store possible actions from current game state
-        self.distributions_list = []
+        self.col_distributions_list = []
         self.building_choices_list = []
         self.res_choices_list = []
 
@@ -29,7 +29,6 @@ class MonteCarloTreeSearch(Game):
 
     # produces a list of tuples where...
     def colonist_distributions(self):
-        # choices of distributions of colonists
         # TODO check if each colony's climate permits farming
         farmer_choices = product(*[range(c.cur_pop + 1) for c in self.colonies])
 
@@ -47,53 +46,61 @@ class MonteCarloTreeSearch(Game):
         # what is this doing?
         m1, m2 = min(food_values.values())
 
-        feasible_choices = [choice for choice in food_values
-                            if food_values[choice] == [m1, m2]]
+        feasible_choices = [choice for choice in food_values if
+                            food_values[choice] == [m1, m2]]
 
-        # enumerate all distributions of colonists that don't result in starvation
-        distributions = []
+        # enumerate all distributions of colonists that don't result in
+        # starvation
+        col_distributions = []
         for choices in feasible_choices:
             temp = []
             for i, k in zip(choices, [c.cur_pop for c in self.colonies]):
                 temp.append([(i, j, k - i - j) for j in range(0, k - i + 1, 4)])
 
-            distributions.extend(product(*temp))
+            col_distributions.extend(product(*temp))
 
-        self.distributions_list = distributions
+        self.col_distributions_list = col_distributions
 
-    def purchase_choices(self, building_choices):
-        # Here temp is a list of tuples of the form i,c,b where c is a colony,
-        # i is it's index in the list game.colonies and b is the building on
-        # the colonies build queue.
-        # Tuples in which the colony's stored production exceeds the building's production cost
-        # or in which the building has an infinite production cost are excluded from this list.
+    def purchase_choices(self, building_choices_tuple):
+        # Compute a list of colony-pairs such that the build can be bought and
+        # and the colony's stored production doesn't exceed the buildings
+        # purchase cost.
 
-        temp = []
-        for (i, c), b in zip(enumerate(self.colonies), building_choices):
-            if (b not in ['tradeGoods', 'housing', 'storeProduction'] and
-                    c.stored_prod < Colony.building_data[b].cost):
-                temp.append((i, c, b))
+        can_be_purchased = []
+        for colony, building in zip(self.colonies, building_choices_tuple):
+            if (building not in ['tradeGoods', 'housing', 'storeProduction']
+                    and colony.stored_prod < building_data[building].cost):
+                can_be_purchased.append((colony, building))
 
-        # Here output is list of tuples of indexes of colonies such that
-        # all of the remaining production points for the buildings on their build queues
-        # can be purchased without exceed the game's treasury
-        output = []
-        for j in range(len(self.colonies) + 1):
-            for combs in combinations(temp, j):
-                if sum(self.production_cost(c, b) for i, c, b in combs) <= self.reserve:
-                    output.append([i for i, c, b in combs])
-        return output
+        colony_index_map = {colony: colony_index for colony_index, colony
+                            in enumerate(self.colonies)}
 
-    # returns a list of tuples of building choices for each colony
+        # Combinations of colonies such that the building choice for every
+        # colony can be purchased without exceeding the game's reserve.
+        purchase_combs = []
+        for num_colonies in range(len(can_be_purchased) + 1):
+            for combination in combinations(can_be_purchased, num_colonies):
+                total_cost = sum(self.production_cost(colony, building)
+                                 for colony, building in combination)
+                if total_cost <= self.reserve:
+                    purchase_combs.append(
+                        [colony_index_map[colony]
+                         for colony, building in combination]
+                    )
+        return purchase_combs
+
     def building_choices(self):
-        building_choices = product(*[c.building_choices for c in self.colonies])
+        building_choices = product(
+            *[colony.building_choices for colony in self.colonies]
+        )
 
-        # compute building choices and corresponding production purchase choices
-        output = []
+        # Pair each tuple of building choices with each way in which it's
+        # buildings can be purchased.
+        self.building_choices_list = []
         for choice in building_choices:
-            output.extend(product([choice], self.purchase_choices(choice)))
-
-        self.building_choices_list = output
+            self.building_choices_list.extend(
+                product([choice], self.purchase_choices(choice))
+            )
 
     # returns a list of choices for the game's research queue
     def research_choices(self):
@@ -107,43 +114,48 @@ class MonteCarloTreeSearch(Game):
 
     # advance game state by taking the given action
     def advance(self, action):
-        [buildings, prod_choice], distributions, research = action
+        [buildings, purchase_combination], col_distributions, research = action
 
         # assign building choices to build queues in colonies and
         # set distribution of workers for each colony
-        for c, building, distribution in zip(self.colonies, buildings, distributions):
-            c.num_farmers, c.num_workers, c.num_scientists = distribution
+        for colony, building, col_distribution in zip(self.colonies, buildings,
+                                                      col_distributions):
+            colony.num_farmers, colony.num_workers, colony.num_scientists = \
+                col_distribution
 
-            c.prev_build_queue = building
-            c.build_queue = building
+            colony.prev_build_queue = building
+            colony.build_queue = building
 
         # purchase production
-        for i in prod_choice:
-            self.buy_production(self.colonies[i])
+        for colony_index in purchase_combination:
+            self.buy_production(self.colonies[colony_index])
 
-        # if research queue is empty, assign it a new research level
+        # If research queue is empty, and there are unfinished research levels,
+        # assign it a new research level.
         if self.res_queue is None and research is not None:
-            index = self.tech_tree_positions[research]
-            self.res_queue = Game.tech_tree[research][index]
+            res_field_index = self.tech_tree_positions[research]
+            self.res_queue = Game.tech_tree[research][res_field_index]
 
         prev_res_queue = self.res_queue
-        prev_pop = self.pop
+        prev_pop = self.population
 
         self.turn()
 
-        # compute building choices and corresponding production purchase choices
+        # compute building choices and corresponding production purchase
+        # choices
         self.building_choices()
 
         # compute research choices
         self.research_choices()
 
-        # did anything alter food production? if so recompute
-        # distributions of colonists
-        if self.pop > prev_pop:
+        # Has the food production in the game changed? If so, recompute
+        # colonists distributions
+
+        if self.population > prev_pop:
             self.colonist_distributions()
 
-        elif any(c.build_queue is None and c.prev_build_queue in self.food_altering_buildings
-                 for c in self.colonies):
+        elif any(colony.build_queue is None and colony.prev_build_queue in
+                 self.food_altering_buildings for colony in self.colonies):
             self.colonist_distributions()
 
         elif (self.res_queue is None and
@@ -152,9 +164,30 @@ class MonteCarloTreeSearch(Game):
                'biomorphicFungi' in prev_res_queue.achievements)):
             self.colonist_distributions()
 
+        # food altering buildings were sold
+
+        # freighters
+
+    def sample(self, action, num_samples):
+        scores = []
+
+        for _ in range(num_samples):
+            temp_game = deepcopy(self)
+            temp_game.advance(action)
+
+            while not temp_game.is_finished():
+                next_action = [random.choice(temp_game.building_choices_list),
+                               random.choice(temp_game.col_distributions_list),
+                               random.choice(temp_game.res_choices_list)]
+                temp_game.advance(next_action)
+
+            scores.append(temp_game.turn_count)
+
+        return action, sum(scores) / num_samples
+
     def choose(self, num_samples):
-        actions = product(self.building_choices_list, self.distributions_list,
-                          self.res_choices_list)
+        actions = product(self.building_choices_list,
+                          self.col_distributions_list, self.res_choices_list)
 
         results = starmap(self.sample, product(actions, [num_samples]))
         choice, value = min(results, key=lambda x: x[1])
@@ -162,46 +195,34 @@ class MonteCarloTreeSearch(Game):
         self.advance(choice)
 
     def choose_parallel(self, num_processes, num_samples):
-        actions = product(self.building_choices_list, self.distributions_list,
-                          self.res_choices_list)
+        actions = product(self.building_choices_list,
+                          self.col_distributions_list, self.res_choices_list)
 
         with Pool(processes=num_processes) as pool:
             # results is an iterable of a list pairs of the form
             # (action, sample(action, num_samples))
-            results = pool.starmap(self.sample, product(actions, [num_samples]))
+            results = pool.starmap(self.sample,
+                                   product(actions, [num_samples]))
             choice, value = min(results, key=lambda x: x[1])
 
         self.advance(choice)
         # self.print_turn_summary(starting_turn=self.turn_count-1)
 
-    def sample(self, action, num_samples):
-        scores = []
-
-        for _ in range(num_samples):
-            temp = deepcopy(self)
-            temp.advance(action)
-
-            while not temp.is_finished():
-                next_action = [random.choice(temp.building_choices_list),
-                               random.choice(temp.distributions_list),
-                               random.choice(temp.res_choices_list)]
-                temp.advance(next_action)
-
-            scores.append(temp.turn_count)
-
-        return action, sum(scores) / num_samples
-
-
     def is_finished(self):
         research_complete = (len(self.avail_tech_fields) == 0)
-        climate_complete = all(c.climate == 'gaia' for c in self.colonies)
-        pop_complete = all(c.cur_pop == c.max_pop for c in self.colonies)
+        climate_complete = all(colony.climate == 'gaia'
+                               for colony in self.colonies)
+
+        pop_complete = all(colony.cur_pop == colony.max_pop
+                           for colony in self.colonies)
+
         final_buildings = {'tradeGoods', 'housing', 'freighterFleet',
                            'pollutionProcessor', 'atmosphereRenewer',
-                           'storeProduction'
-                           }
-        buildings_complete = all(set(c.avail_buildings).issubset(final_buildings)
-                                 for c in self.colonies)
+                           'storeProduction'}
+
+        buildings_complete = all(
+            set(colony.avail_buildings).issubset(final_buildings) for colony in
+            self.colonies)
 
         return (research_complete and pop_complete
                 and buildings_complete and climate_complete)
