@@ -1,5 +1,5 @@
 from math import floor, ceil, sqrt
-from buildDict import building_data
+from BuildingDataDictionary import building_data
 
 
 def nearest_integer(x):
