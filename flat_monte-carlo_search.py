@@ -1,10 +1,12 @@
-from colonyClass import Planet, Colony
+from ColonyClass import Planet, Colony
 from MonteCarloTreeSearchClass import MonteCarloTreeSearch
 import time
 
 p1 = Planet('huge', 'abundant', 'normal', 'terran')
 c1 = Colony(p1, 'colony1', 2, 2, 2,
-            ['automatedFactory', 'hydroponicFarm', 'biospheres', 'researchLab'])
+            ['automatedFactory', 'hydroponicFarm', 'biospheres',
+             'researchLab']
+            )
 
 p2 = Planet('huge', 'abundant', 'normal', 'terran')
 c2 = Colony(p1, 'colony1', 2, 2, 2,
@@ -22,12 +24,12 @@ c4 = Colony(p1, 'colony1', 2, 2, 2,
 starting_tech = [('const', 6), ('chem', 2), ('soc', 2), ('comp', 3),
                  ('bio', 2)]
 
-game = MonteCarloTreeSearch(starting_tech, [c1])
+game = MonteCarloTreeSearch(starting_tech, [c1, c2, c3])
 
 tic = time.time()
 while not game.is_finished():
     print(game.turn_count)
-    game.choose(num_samples=2)
+    game.choose(num_samples=1)
 
 toc = time.time()
-print(toc - tic),
+print(toc - tic)
