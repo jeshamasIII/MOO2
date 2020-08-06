@@ -12,8 +12,6 @@ for line in lines:
         name, cost, maintenance = line.split()
         building_data[name] = Building(int(cost), int(maintenance))
 
-# TODO: add freighter fleet
-# TODO: add buy production
 # tradegoods and housing
 building_data['housing'] = Building(float('inf'), 0)
 building_data['tradeGoods'] = Building(float('inf'), 0)
