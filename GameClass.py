@@ -6,24 +6,16 @@ from tabulate import tabulate
 from itertools import cycle
 
 
-# Freighter class for transporting colonists
-class FreighterFleet:
-    def __init__(self, cargo, dest, eta):
-        self.cargo = cargo
-        self.dest = dest
-        self.eta = eta
-
-
 class Game:
     tech_tree = tree
 
     def __init__(self, starting_tech_positions, colonies, reserve=200,
                  stored_rp=0):
         self.tech_tree_positions = {field: 0 for field in tree}
-        self.avail_tech_fields = [field for field in self.tech_tree]
+        self.available_tech_fields = [field for field in self.tech_tree]
 
         self.stored_rp = stored_rp
-        self.cum_rp = 0
+        self.cumulative_rp = 0
         self.reserve = reserve
 
         self.systems = []
@@ -35,7 +27,7 @@ class Game:
         # distances between colonies
         self.distance = {}
 
-        self.res_queue = None
+        self.research_queue = None
         self.turn_count = 0
 
         # array of freighter fleet objects transporting colonists
@@ -46,7 +38,7 @@ class Game:
         self.game_summary = []
 
         self.food_freighters = 0
-        self.num_freighters = 10
+        self.number_of_freighters = 10
 
         # buildings that have been researched so far
         self.buildings = {b: False for b in building_data}
@@ -67,47 +59,16 @@ class Game:
         # initialize starting tech
         for field, pos in starting_tech_positions:
             for res_level in self.tech_tree[field][:pos]:
-                self.process_res_level(res_level)
+                self.process_research_level(res_level)
             self.tech_tree_positions[field] = pos
 
     @property
-    def avail_freighters(self):
-        return (self.num_freighters - 5 * len(
-            self.in_transport) - self.food_freighters)
-
-    ## this stuff hasn't been tested yet
-    ## move colonists between planets in same system
-    # def move(self, typeOfColonist, origin, dest):
-    #     if typeOfColonist == 'farmer':
-    #         origin.num_farmers -= 1
-    #         dest.num_farmers += 1
-    #
-    #     elif typeOfColonist == 'worker':
-    #         origin.num_workers -= 1
-    #         dest.num_workers += 1
-    #
-    #     elif typeOfColonist == 'scientist':
-    #         origin.num_scientists -= 1
-    #         dest.num_scientists += 1
-    #
-    ## transport colonists between systems
-    # def transport(self, typeOfColonist, origin, dest):
-    #     if typeOfColonist == 'farmer':
-    #         origin.num_farmers -= 1
-    #
-    #     elif typeOfColonist == 'worker':
-    #         origin.num_workers -= 1
-    #
-    #     elif typeOfColonist == 'scientist':
-    #         origin.num_scientists -= 1
-    #
-    #     self.in_transport.append(
-    #         FreighterFleet(typeOfColonist, dest,
-    #                         self.distance[origin, dest])
-    #     )
+    def available_freighters(self):
+        return (self.number_of_freighters - 5 * len(self.in_transport)
+                - self.food_freighters)
 
     @property
-    def gov_bonus(self):
+    def government_bonus(self):
         return .75 if self.achievements['federation'] else .5
 
     @property
@@ -121,7 +82,7 @@ class Game:
 
     @property
     def population(self):
-        return sum(colony.cur_pop for colony in self.colonies)
+        return sum(colony.current_population for colony in self.colonies)
 
     # If reserve becomes negative, sell buildings at random until reserve is
     # positive I'm not exactly sure how MOO2 chooses buildings at random. It
@@ -136,8 +97,8 @@ class Game:
 
             # buildings that have been built in colony and can be sold
             building_choices = [
-                building for building, value in colony.buildings.items()
-                if value is True and building not in cannot_be_sold
+                building for building, is_built in colony.buildings.items()
+                if is_built and building not in cannot_be_sold
             ]
 
             building = random.choice(building_choices)
@@ -146,51 +107,47 @@ class Game:
             self.reserve += sold_for
             colony.buildings[building] = False
 
-            print(f'{building} was sold at {colony.name} for {sold_for} bc')
-
     # cost to purchase production for building in colony
     @staticmethod
     def production_cost(colony, building):
-        pp_cost = building_data[building].cost
+        production_cost = building_data[building].cost
 
         if building == 'terraforming':
-            pp_cost += 250 * colony.terraform_count
+            production_cost += 250 * colony.terraform_count
 
-        pp = colony.stored_prod
-        completed = pp / pp_cost
+        pp = colony.stored_production
+        completed = pp / production_cost
 
         if completed == 0:
-            cost = 4 * pp_cost
+            cost = 4 * production_cost
         elif 0 < completed < .10:
-            cost = 4 * pp_cost - 10 * pp
+            cost = 4 * production_cost - 10 * pp
         elif completed == .10:
-            cost = 3 * pp_cost
+            cost = 3 * production_cost
         elif .10 < completed < .5:
-            cost = 3.5 * pp_cost - 5 * pp
+            cost = 3.5 * production_cost - 5 * pp
         elif completed == .5:
-            cost = pp_cost
+            cost = production_cost
         elif .5 < completed < 1:
-            cost = 2 * pp_cost - 2 * pp
+            cost = 2 * production_cost - 2 * pp
 
         return int(cost)
 
     # Buy remaining production for the building being built in a colony
     def buy_production(self, colony):
-        pp_cost = building_data[colony.build_queue].cost
+        production_cost = building_data[colony.build_queue].cost
 
         if colony.build_queue == 'terraforming':
-            pp_cost += 250 * colony.terraform_count
+            production_cost += 250 * colony.terraform_count
 
-        if colony.stored_prod < pp_cost:
+        if colony.stored_production < production_cost:
             self.reserve -= self.production_cost(colony, colony.build_queue)
-            colony.stored_prod = pp_cost
+            colony.stored_production = production_cost
 
-    # research points
     @property
     def rp(self):
         return sum(colony.rp for colony in self.colonies)
 
-    # money
     @property
     def bc(self):
         return (sum(colony.bc for colony in self.colonies)
@@ -214,15 +171,15 @@ class Game:
         # as the game MOO2. But it looks like MOO2 tries to distribute
         # surplus food evenly among the colonies with food deficits.
         colonies_cycle = cycle(self.colonies)
-        while surplus > 0 and deficit < 0 and self.avail_freighters > 0:
-            colony = colonies_cycle.__next__()
+        while surplus > 0 and deficit < 0 and self.available_freighters > 0:
+            colony = next(colonies_cycle)
             if colony.food + colony.imported_food < 0:
                 colony.imported_food += 1
                 surplus -= 1
                 deficit += 1
                 self.food_freighters += 1
 
-    def process_res_level(self, res_level):
+    def process_research_level(self, res_level):
         for achievement in res_level.achievements:
             self.achievements[achievement] = True
 
@@ -235,7 +192,7 @@ class Game:
 
         # update attributes cum_rp, stored_rp, bc, and reserve
         self.stored_rp += self.rp
-        self.cum_rp += sum(colony.rp for colony in self.colonies)
+        self.cumulative_rp += sum(colony.rp for colony in self.colonies)
         self.reserve += self.bc
 
         # distribute food using available freighters if there is a colony
@@ -249,50 +206,29 @@ class Game:
             colony.turn()
 
         # empty research queue and update game if research is finished
-        if (self.res_queue is not None and
-                self.stored_rp >= int(1.5 * self.res_queue.cost)):
+        if (self.research_queue is not None and
+                self.stored_rp >= int(1.5 * self.research_queue.rp_cost)):
 
             # make finished res_level's buildings and achievements available
-            self.process_res_level(self.res_queue)
+            self.process_research_level(self.research_queue)
 
             # update stored_rp and tech_tree_positions
-            self.stored_rp -= int(1.5 * self.res_queue.cost)
-            self.tech_tree_positions[self.res_queue.field] += 1
+            self.stored_rp -= int(1.5 * self.research_queue.rp_cost)
+            self.tech_tree_positions[self.research_queue.field] += 1
 
             # remove exhausted tech fields
-            position = self.tech_tree_positions[self.res_queue.field]
-            field = self.res_queue.field
+            position = self.tech_tree_positions[self.research_queue.field]
+            field = self.research_queue.field
             if position == len(self.tech_tree[field]):
-                self.avail_tech_fields.remove(field)
+                self.available_tech_fields.remove(field)
 
-            self.res_queue = None
-
-        ## TODO: this hasn't been tested yet
-        ## colonists in transport
-        # for fleet in self.inTransport:
-        #     if fleet.eta == 1:
-        #         dest = fleet.dest
-        #         if not dest.curPop == dest.popMax:
-        #             if fleet.cargo == 'farmer':
-        #                 dest.numFarmers += 1
-        #             elif fleet.cargo == 'worker':
-        #                 dest.numWorkers += 1
-        #             else:
-        #                 dest.numScientists += 1
-        #         del self.inTransport[self.inTransport.index(fleet)]
-        #
-        #     else:
-        #         fleet.eta -= 1
+            self.research_queue = None
 
         # if reserve < 0, sell a random buildings until reserve >= 0.
         if self.reserve < 0:
             self.sell_buildings()
 
         self.turn_count += 1
-
-    # TODO: colonybase logic
-    def colonize(self):
-        pass
 
     # Summarizes the state of the game before the turn button is pressed
     def turn_summary(self):
@@ -302,24 +238,25 @@ class Game:
             building_cost = building_data[colony.build_queue].cost
             self.colonies_summary[-1].append(
                 [colony.num_farmers, colony.food, colony.num_workers,
-                 colony.prod, colony.num_scientists, colony.rp,
+                 colony.production, colony.num_scientists, colony.rp,
                  colony.build_queue,
-                 str(colony.stored_prod) + '/' + str(building_cost), colony.bc,
-                 colony.cur_pop, colony.climate, colony.max_pop
+                 str(colony.stored_production) + '/' + str(building_cost),
+                 colony.bc, colony.current_population, colony.climate,
+                 colony.max_population
                  ]
             )
 
         # Turn summary for game
-        if self.res_queue is not None:
-            field = self.res_queue.field
-            research = field + str(self.res_queue.level)
+        if self.research_queue is not None:
+            field = self.research_queue.field
+            research = field + str(self.research_queue.level)
         else:
             research = 'None'
 
         self.game_summary.append(
-            [self.food, self.rp, self.cum_rp, self.bc, self.reserve,
+            [self.food, self.rp, self.cumulative_rp, self.bc, self.reserve,
              self.population, research, self.food_freighters,
-             self.num_freighters]
+             self.number_of_freighters]
         )
 
     def print_turn_summary(self, starting_turn=0):
@@ -351,6 +288,6 @@ class Game:
         print('income:', self.bc)
         print('population:', self.population)
         print(f'food_freighters, num_freighters: '
-              f'{self.food_freighters},{self.num_freighters}')
+              f'{self.food_freighters},{self.number_of_freighters}')
         print('food:', self.food)
         print('research:', self.rp)
