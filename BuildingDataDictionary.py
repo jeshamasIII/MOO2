@@ -1,6 +1,5 @@
 from collections import namedtuple
 
-# maybe namedtuple would be better?
 Building = namedtuple('Building', ['cost', 'maintenance'])
 
 with open(r"/home/typhode/Documents/Python/moo2/game/buildingData") as file:
