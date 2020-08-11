@@ -21,8 +21,8 @@ c4 = Colony(p1, 'colony1', 2, 2, 2,
             ['automatedFactory', 'hydroponicFarm', 'biospheres'])
 
 # starting positions for each research field
-starting_tech = [('const', 6), ('chem', 2), ('soc', 2), ('comp', 3),
-                 ('bio', 2)]
+starting_tech = [('construction', 6), ('chemistry', 2), ('sociology', 2),
+                 ('computers', 3), ('biology', 2) ]
 
 game = MonteCarloTreeSearch(starting_tech, [c1, c2, c3])
 
