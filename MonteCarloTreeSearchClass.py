@@ -30,7 +30,8 @@ class MonteCarloTreeSearch(Game):
     # produces a list of tuples where...
     def colonist_distributions(self):
         # TODO check if each colony's climate permits farming
-        farmer_choices = product(*[range(c.cur_pop + 1) for c in self.colonies])
+        farmer_choices = product(*[range(c.current_population + 1)
+                                   for c in self.colonies])
 
         # filter out choices of number of farmers that result in starvation
         food_values = {}
@@ -54,7 +55,7 @@ class MonteCarloTreeSearch(Game):
         col_distributions = []
         for choices in feasible_choices:
             temp = []
-            for i, k in zip(choices, [c.cur_pop for c in self.colonies]):
+            for i, k in zip(choices, [c.current_population for c in self.colonies]):
                 temp.append([(i, j, k - i - j) for j in range(0, k - i + 1, 4)])
 
             col_distributions.extend(product(*temp))
@@ -69,7 +70,7 @@ class MonteCarloTreeSearch(Game):
         can_be_purchased = []
         for colony, building in zip(self.colonies, building_choices_tuple):
             if (building not in ['tradeGoods', 'housing', 'storeProduction']
-                    and colony.stored_prod < building_data[building].cost):
+                    and colony.stored_production < building_data[building].cost):
                 can_be_purchased.append((colony, building))
 
         colony_index_map = {colony: colony_index for colony_index, colony
@@ -105,8 +106,8 @@ class MonteCarloTreeSearch(Game):
     # returns a list of choices for the game's research queue
     def research_choices(self):
         if self.res_queue is None:
-            if len(self.avail_tech_fields) > 0:
-                self.res_choices_list = self.avail_tech_fields
+            if len(self.available_tech_fields) > 0:
+                self.res_choices_list = self.available_tech_fields
             else:
                 self.res_choices_list = [None]
         else:
@@ -123,7 +124,7 @@ class MonteCarloTreeSearch(Game):
             colony.num_farmers, colony.num_workers, colony.num_scientists = \
                 col_distribution
 
-            colony.prev_build_queue = building
+            colony.previous_build_queue = building
             colony.build_queue = building
 
         # purchase production
@@ -154,12 +155,12 @@ class MonteCarloTreeSearch(Game):
         if self.population > prev_pop:
             self.colonist_distributions()
 
-        elif any(colony.build_queue is None and colony.prev_build_queue in
+        elif any(colony.build_queue is None and colony.previous_build_queue in
                  self.food_altering_buildings for colony in self.colonies):
             self.colonist_distributions()
 
         elif (self.res_queue is None and
-              len(self.avail_tech_fields) > 0 and
+              len(self.available_tech_fields) > 0 and
               ('realityNetwork' in prev_res_queue.achievements or
                'biomorphicFungi' in prev_res_queue.achievements)):
             self.colonist_distributions()
@@ -209,11 +210,11 @@ class MonteCarloTreeSearch(Game):
         # self.print_turn_summary(starting_turn=self.turn_count-1)
 
     def is_finished(self):
-        research_complete = (len(self.avail_tech_fields) == 0)
+        research_complete = (len(self.available_tech_fields) == 0)
         climate_complete = all(colony.climate == 'gaia'
                                for colony in self.colonies)
 
-        pop_complete = all(colony.cur_pop == colony.max_pop
+        pop_complete = all(colony.current_population == colony.max_population
                            for colony in self.colonies)
 
         final_buildings = {'tradeGoods', 'housing', 'freighterFleet',
@@ -221,7 +222,7 @@ class MonteCarloTreeSearch(Game):
                            'storeProduction'}
 
         buildings_complete = all(
-            set(colony.avail_buildings).issubset(final_buildings) for colony in
+            set(colony.available_buildings).issubset(final_buildings) for colony in
             self.colonies)
 
         return (research_complete and pop_complete
