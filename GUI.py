@@ -145,10 +145,10 @@ class ColonyInfo1(UpdatableInfoLabel):
                   f"Size: {colony.size.capitalize()}\n"
                   f"Gravity: {colony.gravity.capitalize()}\n"
                   f"Mineral Richness: {colony.mineral_richness.capitalize()}\n"
-                  f"Population: {colony.current_population}\n"
-                  f"Max Pop: {colony.max_population}\n"
-                  f"{colony.raw_population % 1000} + {colony.population_increment}\n"
-                  f"{colony.stored_production}/{building_cost} + {colony.production}")
+                  f"Population: {colony.current_population} M\n"
+                  f"Max Pop: {colony.max_population} M\n"
+                  f"Pop Growth: {colony.raw_population % 1000}k + {colony.population_increment}k\n"
+                  f"Stored Prod / Building Cost + Prod: {colony.stored_production}/{building_cost} + {colony.production}")
         return output
 
 
