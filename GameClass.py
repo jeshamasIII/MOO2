@@ -38,7 +38,7 @@ class Game:
         self.game_summary = []
 
         self.food_freighters = 0
-        self.number_of_freighters = 10
+        self.total_freighters = 10
 
         # buildings that have been researched so far
         self.buildings = {b: False for b in building_data}
@@ -64,7 +64,7 @@ class Game:
 
     @property
     def available_freighters(self):
-        return (self.number_of_freighters - 5 * len(self.in_transport)
+        return (self.total_freighters - 5 * len(self.in_transport)
                 - self.food_freighters)
 
     @property
@@ -168,7 +168,7 @@ class Game:
                       if colony.food > 0)
 
         # I'm not sure if this distributes food in the exact same way
-        # as the game MOO2. But it looks like MOO2 tries to distribute
+        # as in the game MOO2. But it looks like MOO2 tries to distribute
         # surplus food evenly among the colonies with food deficits.
         colonies_cycle = cycle(self.colonies)
         while surplus > 0 and deficit < 0 and self.available_freighters > 0:
@@ -256,7 +256,7 @@ class Game:
         self.game_summary.append(
             [self.food, self.rp, self.cumulative_rp, self.bc, self.reserve,
              self.population, research, self.food_freighters,
-             self.number_of_freighters]
+             self.total_freighters]
         )
 
     def print_turn_summary(self, starting_turn=0):
@@ -288,6 +288,6 @@ class Game:
         print('income:', self.bc)
         print('population:', self.population)
         print(f'food_freighters, num_freighters: '
-              f'{self.food_freighters},{self.number_of_freighters}')
+              f'{self.food_freighters},{self.total_freighters}')
         print('food:', self.food)
         print('research:', self.rp)
