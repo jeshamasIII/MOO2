@@ -403,7 +403,9 @@ class Colony(Planet):
 
         cloning_center_bonus = 100 * self.buildings['cloningCenter']
 
-        food_short_fall = max(self.food + self.imported_food, 0)
+        food_short_fall = (self.food + self.imported_food if
+                           self.food + self.imported_food < 0 else 0)
+
         starvation_penalty = 50 * food_short_fall
 
         return (floor(base_population_growth
@@ -460,7 +462,7 @@ class Colony(Planet):
 
                 # freighter fleet
                 if self.build_queue == 'freighterFleet':
-                    self.game.number_of_freighters += 1
+                    self.game.total_freighters += 1
                     self.buildings['freighterFleet'] = False
 
                 # radiation shield
