@@ -1,31 +1,40 @@
+# This gui has two purposes. First to make debugging the game logic easier.
+# Second to allow a human to create benchmarks for the game-tree search
+# by manually completing games.
+
+
 import tkinter as tk
+import tkinter.font as tkFont
 from GameClass import Game
 from ColonyClass import Planet, Colony
 from BuildingDataDictionary import building_data
 
 
 class Header:
-    def __init__(self, parent, names):
-        self.labels = [tk.Label(master=parent, text=name, relief=tk.RAISED)
-                       for name in names]
+    def __init__(self, parent, names, font):
+        self.labels = []
+        for name in names:
+            self.labels.append(
+                tk.Label(master=parent, text=name, relief=tk.RAISED, font=font)
+            )
 
 
 class ColonistSpinBox(tk.Spinbox):
-    def __init__(self, parent, upper_limit, colonist_type):
+    def __init__(self, parent, upper_limit, colonist_type, font):
         self.colonist_type = colonist_type
         self.value = tk.IntVar(value=upper_limit)
         self.previous_value = self.value.get()
 
         tk.Spinbox.__init__(self, master=parent, from_=0, to=upper_limit,
-                            textvariable=self.value,
-                            state='readonly')
+                            textvariable=self.value, state='readonly',
+                            font=font)
 
         self.bind('<Enter> e', lambda event: self.invoke('buttonup'))
         self.bind('<Enter> d', lambda event: self.invoke('buttondown'))
 
 
 class BuildQueue(tk.OptionMenu):
-    def __init__(self, parent, colony):
+    def __init__(self, parent, colony, font):
         self.colony = colony
         self.text_variable = tk.StringVar(value="tradeGoods")
 
@@ -35,7 +44,8 @@ class BuildQueue(tk.OptionMenu):
             self.text_variable,
             *colony.available_buildings,
         )
-        self.configure(takefocus=True)
+        self.configure(takefocus=True, font=font)
+        self['menu'].configure(font=font)
 
     def update_choices(self):
         self['menu'].delete(0, 'end')
@@ -47,46 +57,52 @@ class BuildQueue(tk.OptionMenu):
 
         if self.colony.build_queue is None:
             self.text_variable.set('tradeGoods')
+            # self.colony.build_queue = 'tradeGoods'
             self['state'] = 'normal'
 
 
 class ColonyRow:
-    def __init__(self, parent, colony):
+    def __init__(self, parent, colony, font):
         self.colony = colony
 
         self.name_label = tk.Label(
             master=parent,
             text=colony.name.capitalize(),
-            relief=tk.RAISED
+            relief=tk.RAISED,
+            font=font
         )
 
         self.farmers_spinbox = ColonistSpinBox(
             parent=parent,
             upper_limit=colony.num_farmers + colony.unassigned,
-            colonist_type='farmer'
+            colonist_type='farmer',
+            font=font
         )
 
         self.workers_spinbox = ColonistSpinBox(
             parent=parent,
             upper_limit=colony.num_workers + colony.unassigned,
-            colonist_type='worker'
+            colonist_type='worker',
+            font=font
         )
 
         self.scientists_spinbox = ColonistSpinBox(
             parent=parent,
             upper_limit=colony.num_scientists + colony.unassigned,
-            colonist_type='scientist'
+            colonist_type='scientist',
+            font=font
         )
 
         self.unassigned_label = tk.Label(
             master=parent,
             text=colony.unassigned,
-            relief=tk.RAISED
+            relief=tk.RAISED,
+            font=font
         )
 
-        self.build_queue = BuildQueue(parent, colony)
+        self.build_queue = BuildQueue(parent, colony, font=font)
 
-        self.buy_button = tk.Button(master=parent, text='Buy')
+        self.buy_button = tk.Button(master=parent, text='Buy', font=font)
 
         self.spinboxes = [self.farmers_spinbox, self.workers_spinbox,
                           self.scientists_spinbox
@@ -103,9 +119,9 @@ class ColonyRow:
 
 # class for displaying information for a game or colony object
 class UpdatableInfoLabel(tk.Label):
-    def __init__(self, parent, object):
+    def __init__(self, parent, object, font):
         tk.Label.__init__(self, master=parent, text=self.text(object),
-                          relief=tk.RAISED, anchor=tk.N)
+                          relief=tk.RAISED, anchor=tk.N, font=font)
 
     @staticmethod
     def text(object):
@@ -118,7 +134,11 @@ class UpdatableInfoLabel(tk.Label):
 class ColonyInfo1(UpdatableInfoLabel):
     @staticmethod
     def text(colony):
-        cost = building_data[colony.build_queue].cost
+        building = colony.build_queue
+        if building == 'terraforming':
+            building_cost = 250 * (1 + colony.terraform_count)
+        else:
+            building_cost = building_data[building].cost
 
         output = (f"Selected: {colony.name.capitalize()}\n"
                   f"Climate: {colony.climate.capitalize()}\n"
@@ -128,7 +148,7 @@ class ColonyInfo1(UpdatableInfoLabel):
                   f"Population: {colony.current_population}\n"
                   f"Max Pop: {colony.max_population}\n"
                   f"{colony.raw_population % 1000} + {colony.population_increment}\n"
-                  f"{colony.stored_production}/{cost} + {colony.production}")
+                  f"{colony.stored_production}/{building_cost} + {colony.production}")
         return output
 
 
@@ -168,7 +188,7 @@ class GameInfo(UpdatableInfoLabel):
             f"Reserve: {game.reserve} \n"
             f"Income: {game.bc} \n"
             f"Population: {game.population}\n"
-            f"Freighters: ({game.available_freighters}) {game.number_of_freighters}\n"
+            f"Freighters: ({game.available_freighters}) {game.total_freighters}\n"
             f"Food: {game.food} \n"
             f"Research: {game.rp}"
         )
@@ -181,16 +201,18 @@ class ResearchFieldInfo(UpdatableInfoLabel):
 
         if game.research_queue is not None:
 
-            output += f'{game.research_queue.field}{game.research_queue.level}' '\n\n'
+            output += (game.research_queue.field
+                       + str(game.research_queue.level)
+                       + '\n\n')
 
             buildings = game.research_queue.buildings
-            if buildings:
+            if len(buildings) > 0:
                 output += '\n'.join(['Buildings:'] + buildings) + '\n\n'
             else:
                 output += 'Buildings: \n None \n\n'
 
             achievements = game.research_queue.achievements
-            if achievements:
+            if len(achievements) > 0:
                 output += '\n'.join(['Achievements:'] + achievements) + '\n\n'
             else:
                 output += 'Achievements: \n None \n\n'
@@ -203,11 +225,12 @@ class ResearchFieldInfo(UpdatableInfoLabel):
 
 
 class ResearchChoicesInfo(tk.Frame):
-    def __init__(self, parent, game):
+    def __init__(self, parent, game, font):
         tk.Frame.__init__(self, master=parent, bd=1, relief=tk.RAISED)
 
         self.game = game
-        self.researching = tk.Label(master=self, text=self.researching_text())
+        self.researching = tk.Label(master=self, text=self.researching_text(),
+                                    font=font)
 
         self.researching.pack(side='top')
 
@@ -217,10 +240,13 @@ class ResearchChoicesInfo(tk.Frame):
             self.text_variable,
             *game.tech_tree
         )
+        self.research_choice.configure(font=font)
+        self.research_choice['menu'].configure(font=font)
 
         self.research_choice.pack(side='top')
 
-        self.progress = tk.Label(master=self, text=self.progress_text())
+        self.progress = tk.Label(master=self, text=self.progress_text(),
+                                 font=font)
 
         self.progress.pack(side='top')
 
@@ -263,17 +289,20 @@ class GUI(tk.Tk):
         tk.Tk.__init__(self)
 
         self.title(string='MOO2 GUI')
+        self.custom_font = tkFont.Font(family="Helvetica", size=9)
 
         self.game = game
 
-        self.header = Header(self, ['Name', 'Farmers', 'Workers',
-                                    'Scientists', 'Unassigned', 'Building', ''])
+        header_names = ['Name', 'Farmers', 'Workers', 'Scientists',
+                        'Unassigned', 'Building', '']
+        self.header = Header(self, header_names, font=self.custom_font)
 
         for column_number, label in enumerate(self.header.labels):
             label.grid(row=0, column=column_number,
                        sticky=tk.W + tk.E + tk.N + tk.S)
 
-        self.colony_rows = [ColonyRow(self, colony) for colony in game.colonies]
+        self.colony_rows = [ColonyRow(self, colony, font=self.custom_font)
+                            for colony in game.colonies]
 
         self.colony_row_selected = self.colony_rows[0]
 
@@ -285,20 +314,45 @@ class GUI(tk.Tk):
         self.last_row_index = len(game.colonies) + 1
 
         # info labels
-        self.colony_info1 = ColonyInfo1(self, game.colonies[0])
+        self.colony_info1 = ColonyInfo1(
+            self,
+            game.colonies[0],
+            font=self.custom_font
+        )
 
-        self.colony_info2 = ColonyInfo2(self, game.colonies[0])
+        self.colony_info2 = ColonyInfo2(
+            self,
+            game.colonies[0],
+            font=self.custom_font
+        )
 
-        self.colony_info3 = ColonyInfo3(self, game.colonies[0])
+        self.colony_info3 = ColonyInfo3(
+            self,
+            game.colonies[0],
+            font=self.custom_font
+        )
 
-        self.research_field_info = ResearchFieldInfo(self, game)
+        self.research_field_info = ResearchFieldInfo(
+            self,
+            game,
+            font=self.custom_font
+        )
 
-        self.research_info = ResearchChoicesInfo(self, game)
+        self.research_info = ResearchChoicesInfo(
+            self,
+            game,
+            font=self.custom_font
+        )
 
-        self.game_info = GameInfo(self, game)
+        self.game_info = GameInfo(
+            self,
+            game,
+            font=self.custom_font
+        )
 
         # turn button
-        self.turn_button = tk.Button(master=self, text='T\nU\nR\nN')
+        self.turn_button = tk.Button(master=self, text='T\nU\nR\nN',
+                                     font=self.custom_font)
 
         self.last_row = [
             self.colony_info1, self.colony_info2, self.colony_info3,
@@ -336,10 +390,10 @@ class GUI(tk.Tk):
 
         # set traces/ commands
 
-        for colony_row in self.colony_rows:
+        for colony, colony_row in zip(self.game.colonies, self.colony_rows):
             colony_row.build_queue.text_variable.trace(
                 "w",
-                self.set_build_queue
+                lambda w, x, y, z=colony: self.set_build_queue(w, x, y, z)
             )
 
             colony_row.buy_button.configure(command=self.buy_production)
@@ -371,13 +425,13 @@ class GUI(tk.Tk):
         self.colony_info2.update_label(colony_row.colony)
         self.colony_info3.update_label(colony_row.colony)
 
-    def set_build_queue(self, x, y, z):
+    def set_build_queue(self, w, x, y, colony):
         text_variable = self.colony_row_selected.build_queue.text_variable
-        colony = self.colony_row_selected.colony
-
         colony.build_queue = text_variable.get()
-        self.game_info.update_label(self.game)
-        self.colony_info1.update_label(colony)
+
+        if colony == self.colony_row_selected.colony:
+            self.colony_info1.update_label(colony)
+            self.game_info.update_label(self.game)
 
     def set_research_queue(self, x, y, z):
         var = self.research_info.text_variable.get()
@@ -507,7 +561,7 @@ c3 = Colony(p3, 'Mentar IV', 2, 3, 3,
 starting_tech_positions = [('construction', 6), ('chemistry', 3),
                            ('sociology', 2), ('computers', 3), ('biology', 2)]
 
-game = Game(starting_tech_positions, [c1, c2, c3], reserve=2150)
+game = Game(starting_tech_positions, [c1, c2, c3], reserve=10000, stored_rp=10000)
 
 # Initialize GUI
-# gui = GUI(game)
+gui = GUI(game)
