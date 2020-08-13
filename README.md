@@ -19,6 +19,10 @@ Let's say that our reduced version of the MOO2 has been completed if
 
 The goal of this project is then to, starting at some initial game position, find a sequence of
 actions of minimal length that completes the game.
+ 
+A flat Monte-Carlo search tree has been implemented and can be for some special cases, but this part of
+the project is still in progress.
+ 
 
 
 
