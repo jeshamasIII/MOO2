@@ -542,26 +542,3 @@ class GUI(tk.Tk):
         self.game_info.update_label(self.game)
 
         self.game.distribute_food()
-
-
-# Initialize game object
-p1 = Planet('large', 'abundant', 'normal', 'tundra')
-c1 = Colony(p1, 'Ecber II', 2, 1, 1,
-            ['hydroponicFarm', 'marineBarracks'])
-
-p2 = Planet('large', 'abundant', 'normal', 'desert')
-c2 = Colony(p2, 'Fahd II', 2, 1, 1,
-            ['marineBarracks', 'hydroponicFarm'])
-
-p3 = Planet('medium', 'abundant', 'normal', 'terran')
-c3 = Colony(p3, 'Mentar IV', 2, 3, 3,
-            ['automatedFactory', 'hydroponicFarm', 'biospheres',
-             'marineBarracks', 'soilEnrichment'])
-
-starting_tech_positions = [('construction', 6), ('chemistry', 3),
-                           ('sociology', 2), ('computers', 3), ('biology', 2)]
-
-game = Game(starting_tech_positions, [c1, c2, c3], reserve=10000, stored_rp=10000)
-
-# Initialize GUI
-gui = GUI(game)
