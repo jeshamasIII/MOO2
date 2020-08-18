@@ -11,16 +11,17 @@ At the moment the game logic assumes that the player's race is democratic and cr
 
 More about the game-tree search:
 
-Let's say that our reduced version of the MOO2 has been completed if
+Let's say that our reduced version of MOO2 has been completed if
 1. Every available tech field has been researched.
-2. The climate of every colony in the empire has been terraformed to gaia and has reached full population.
+2. The climate of every colony in the empire has been terraformed to gaia and each colony has reached full population.
 3. For every colony in the empire, every building, except possibly pollution processor or atmospheric renewer, 
    has been built.
 
-The goal of this project is then to, starting at some initial game position, find a sequence of
+The goal of this project is then, starting at some initial game position, to find a sequence of
 actions of minimal length that completes the game.
  
-A flat Monte-Carlo search tree has been implemented and can be for some special cases, but this part of
+A flat Monte-Carlo tree search
+has been implemented and can used be for some special cases, but this part of
 the project is still in progress.
  
 
