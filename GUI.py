@@ -2,11 +2,9 @@
 # Second to allow a human to create benchmarks for the game-tree search
 # by manually completing games.
 
-
 import tkinter as tk
 import tkinter.font as tkFont
 from GameClass import Game
-from ColonyClass import Planet, Colony
 from BuildingDataDictionary import building_data
 
 
@@ -262,7 +260,7 @@ class ResearchChoicesInfo(tk.Frame):
         if self.game.research_queue is not None:
             return ('Progress: '
                     + str(self.game.stored_rp) + '/'
-                    + str(2 * self.game.research_queue.rp_cost))
+                    + str(int(1.5 * self.game.research_queue.rp_cost)))
         else:
             return f'Progress: {self.game.stored_rp}/None'
 
@@ -434,15 +432,15 @@ class GUI(tk.Tk):
             self.game_info.update_label(self.game)
 
     def set_research_queue(self, x, y, z):
-        var = self.research_info.text_variable.get()
-        if var == '':
+        field_name = self.research_info.text_variable.get()
+        if field_name == '':
             self.game.research_queue = None
         else:
-            self.game.research_queue = \
-                Game.tech_tree[var][game.tech_tree_positions[var]]
+            position = self.game.tech_tree_positions[field_name]
+            self.game.research_queue = Game.tech_tree[field_name][position]
 
         self.research_info.update_labels()
-        self.research_field_info.update_label(game)
+        self.research_field_info.update_label(self.game)
 
     def buy_production(self):
         colony = self.colony_row_selected.colony
@@ -465,7 +463,7 @@ class GUI(tk.Tk):
         # update colony attributes
         if selected_spinbox.colonist_type == 'farmer':
             colony.num_farmers = selected_spinbox.value.get()
-            game.distribute_food()
+            self.game.distribute_food()
         elif selected_spinbox.colonist_type == 'worker':
             colony.num_workers = selected_spinbox.value.get()
         elif selected_spinbox.colonist_type == 'scientist':
@@ -495,12 +493,12 @@ class GUI(tk.Tk):
 
         selected_spinbox.previous_value = selected_spinbox.value.get()
 
-    def turn(self, event=None):
+    def turn(self):
         self.turn_button.focus()
 
         cond1 = any(colony.unassigned for colony in self.game.colonies)
         cond2 = (self.research_info.text_variable.get() == ''
-                 and len(game.available_tech_fields) > 0)
+                 and len(self.game.available_tech_fields) > 0)
         if cond1 or cond2:
             return
 
