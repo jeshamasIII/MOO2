@@ -27,8 +27,8 @@ class ColonistSpinBox(tk.Spinbox):
                             textvariable=self.value, state='readonly',
                             font=font)
 
-        self.bind('<Enter> e', lambda event: self.invoke('buttonup'))
-        self.bind('<Enter> d', lambda event: self.invoke('buttondown'))
+        self.bind('e', lambda event: self.invoke('buttonup'))
+        self.bind('d', lambda event: self.invoke('buttondown'))
 
 
 class BuildQueue(tk.OptionMenu):
@@ -207,7 +207,7 @@ class ResearchFieldInfo(UpdatableInfoLabel):
             if len(buildings) > 0:
                 output += '\n'.join(['Buildings:'] + buildings) + '\n\n'
             else:
-                output += 'Buildings: \n None \n\n'
+                output += 'Buildings Completed: \n None \n\n'
 
             achievements = game.research_queue.achievements
             if len(achievements) > 0:
@@ -378,7 +378,7 @@ class GUI(tk.Tk):
                     lambda event, x=colony_row: self.select_colony_row(event, x)
                 )
         # bind the t-key to the turn button
-        self.bind('t', self.turn)
+        self.bind('t', lambda event: self.turn())
 
         # This binding causes the keyboard focus to follow the mouse
         self.bind_all(
