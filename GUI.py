@@ -174,7 +174,7 @@ class ColonyInfo3(UpdatableInfoLabel):
                     not in ['terraforming', 'gaiaTransformation']):
                 buildings.append(building)
 
-        output = '\n'.join(['Buildings:'] + buildings)
+        output = '\n'.join(['Buildings Completed:'] + buildings)
         return output
 
 
@@ -207,7 +207,7 @@ class ResearchFieldInfo(UpdatableInfoLabel):
             if len(buildings) > 0:
                 output += '\n'.join(['Buildings:'] + buildings) + '\n\n'
             else:
-                output += 'Buildings Completed: \n None \n\n'
+                output += 'Buildings: \n None \n\n'
 
             achievements = game.research_queue.achievements
             if len(achievements) > 0:
