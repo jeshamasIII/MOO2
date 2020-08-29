@@ -2,7 +2,7 @@ from collections import namedtuple
 
 Building = namedtuple('Building', ['cost', 'maintenance'])
 
-with open(r"/home/typhode/Documents/Python/moo2/game/buildingData") as file:
+with open("BuildingData") as file:
     lines = file.readlines()
 
 building_data = {}
