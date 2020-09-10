@@ -138,31 +138,61 @@ class ColonyInfo1(UpdatableInfoLabel):
         else:
             building_cost = building_data[building].cost
 
-        output = (f"Selected: {colony.name.capitalize()}\n"
-                  f"Climate: {colony.climate.capitalize()}\n"
-                  f"Size: {colony.size.capitalize()}\n"
-                  f"Gravity: {colony.gravity.capitalize()}\n"
-                  f"Mineral Richness: {colony.mineral_richness.capitalize()}\n"
-                  f"Population: {colony.current_population} M\n"
-                  f"Max Pop: {colony.max_population} M\n"
-                  f"Pop Growth: {colony.raw_population % 1000}k + {colony.population_increment}k\n"
-                  f"Stored Prod / Building Cost + Prod: {colony.stored_production}/{building_cost} + {colony.production}")
+        output = (
+            f"{colony.name.capitalize()} \n\n"
+            f"Climate: {colony.climate.capitalize()}\n"
+            f"Size: {colony.size.capitalize()}\n"
+            f"Gravity: {colony.gravity.capitalize()}\n"
+            f"Mineral Richness: {colony.mineral_richness.capitalize()}\n"
+            f"Population: {colony.current_population} M\n"
+            f"Max Pop: {colony.max_population} M\n"
+            f"Pop Growth: {colony.raw_population % 1000}k + {colony.population_increment}k\n"
+            f"Stored Prod / Building Cost + Prod: {colony.stored_production}/{building_cost} + {colony.production}"
+        )
         return output
 
 
-class ColonyInfo2(UpdatableInfoLabel):
-    @staticmethod
-    def text(colony):
-        output = (f"Selected: {colony.name.capitalize()}\n"
-                  f"Food: {colony.food}\n"
-                  f"Imported Food: {colony.imported_food}\n"
-                  f"Production: {colony.production}\n"
-                  f"Pollution: {colony.pollution_penalty}\n"
-                  f"Research: {colony.rp}\n"
-                  f"Net BC: {colony.bc}\n"
-                  f"Morale: {colony.morale_multiplier}\n"
-                  )
-        return output
+class ColonyInfo2(tk.Frame):
+    def __init__(self, parent):
+        self.parent = parent
+        tk.Frame.__init__(self, master=parent)
+
+        self.widgets = [
+            tk.Label(master=self),
+            tk.Label(master=self),
+            tk.Button(master=self, command=lambda: FoodVariables(parent),
+                      height=2),
+            tk.Label(master=self, relief=tk.RAISED),
+            tk.Button(master=self, command=lambda: ProductionVariables(parent)),
+            tk.Button(master=self, command=lambda: Pollution(parent)),
+            tk.Button(master=self, command=lambda: RpVariables(parent)),
+            tk.Button(master=self, command=lambda: BcVariables(parent)),
+            tk.Button(master=self, command=lambda: Morale(parent))
+        ]
+
+        for widget in self.widgets:
+            widget.configure(font=parent.custom_font, height=1,
+                             anchor=tk.N)
+            widget.pack(fill=tk.X)
+
+        self.update_label()
+
+    def update_label(self):
+        colony = self.parent.colony_row_selected.colony
+        strings = [
+            f"{colony.name.capitalize()}",
+            "",
+            f"Food: {colony.food}\n",
+            f"Imported Food: {colony.imported_food}\n",
+            f"Production: {colony.production}\n",
+            f"Pollution: {colony.production_variables['pollution_penalty']}\n",
+            f"Research: {colony.rp}\n",
+            f"Net BC: {colony.bc}\n",
+            f"Morale: {colony.morale_multiplier}\n"
+        ]
+
+        for label, string in zip(self.widgets, strings):
+            label.configure(text=string)
 
 
 class ColonyInfo3(UpdatableInfoLabel):
@@ -174,7 +204,8 @@ class ColonyInfo3(UpdatableInfoLabel):
                     not in ['terraforming', 'gaiaTransformation']):
                 buildings.append(building)
 
-        output = '\n'.join(['Buildings Completed:'] + buildings)
+        output = (f"{colony.name.capitalize()} \n\n"
+                  + '\n'.join(['Buildings Completed:'] + buildings))
         return output
 
 
@@ -196,6 +227,8 @@ class ResearchFieldInfo(UpdatableInfoLabel):
     @staticmethod
     def text(game):
         output = ''
+
+        output += 'Research Field Info \n\n'
 
         if game.research_queue is not None:
 
@@ -230,7 +263,7 @@ class ResearchChoicesInfo(tk.Frame):
         self.researching = tk.Label(master=self, text=self.researching_text(),
                                     font=font)
 
-        self.researching.pack(side='top')
+        self.researching.pack()
 
         self.text_variable = tk.StringVar()
         self.research_choice = tk.OptionMenu(
@@ -241,12 +274,19 @@ class ResearchChoicesInfo(tk.Frame):
         self.research_choice.configure(font=font)
         self.research_choice['menu'].configure(font=font)
 
-        self.research_choice.pack(side='top')
+        self.research_choice.pack()
 
         self.progress = tk.Label(master=self, text=self.progress_text(),
                                  font=font)
 
-        self.progress.pack(side='top')
+        self.progress.pack()
+
+        self.achievements_completed = tk.Label(
+            master=self,
+            text=self.achievements_completed_text(),
+            font=font
+        )
+        self.achievements_completed.pack()
 
     def researching_text(self):
         if self.game.research_queue is not None:
@@ -264,9 +304,19 @@ class ResearchChoicesInfo(tk.Frame):
         else:
             return f'Progress: {self.game.stored_rp}/None'
 
+    def achievements_completed_text(self):
+        text = "\n\n Achievements Completed: \n\n"
+
+        for achievement, is_researched in self.game.achievements.items():
+            if is_researched:
+                text += achievement + "\n"
+
+        return text
+
     def update_labels(self):
         self.researching.configure(text=self.researching_text())
         self.progress.configure(text=self.progress_text())
+        self.achievements_completed.configure(text=self.achievements_completed_text())
 
     def update_menu(self):
         menu = self.research_choice['menu']
@@ -282,12 +332,170 @@ class ResearchChoicesInfo(tk.Frame):
             self.text_variable.set('')
 
 
+class PopUpWindow:
+    def __init__(self, parent):
+        self.window = tk.Toplevel()
+        self.game = parent.game
+        self.colony = parent.colony_row_selected.colony
+        self.label = tk.Label(
+            master=self.window,
+            text=self.update_text(),
+            relief=tk.RAISED,
+            justify='left',
+            font=parent.custom_font
+        )
+        self.label.pack()
+        self.window.mainloop()
+
+    def update_text(self):
+        pass
+
+
+class BcVariables(PopUpWindow):
+    def update_text(self):
+        self.colony.bc
+        variables = self.colony.bc_variables
+
+        output = (
+            f"{self.colony.name.capitalize()} \n\n"
+            f"+{variables['taxes_collected']} \t Taxes Collected \n"
+            f"+{variables['morale_bonus']} \t Morale Bonus \n"
+            f"+{variables['spaceport_bonus']} \t Spaceport \n"
+            f"+{variables['stock_exchange_bonus']} \t Stock Exchange \n"
+            f"+{variables['currency_exchange_bonus']} \t Currency Exchange \n"
+            f"+{variables['government_bonus']} \t Government Bonus \n"
+            f"+{variables['tradegoods']} \t Tradegoods \n"
+            f"-{variables['maintenance_cost']} \t Maintenance Cost \n"
+            f"-{variables['climate_cost']} \t Climate Cost \n\n"
+        )
+
+        sign = '+' if self.colony.bc >= 0 else '-'
+        output += sign + f"{self.colony.bc} \t Net BC \n"
+
+        return output
+
+
+class RpVariables(PopUpWindow):
+    def update_text(self):
+        self.colony.rp
+        variables = self.colony.rp_variables
+
+        output = (
+            f"{self.colony.name.capitalize()} \n\n"
+            f"+{variables['base_research']} \t Base RP \n"
+            f"+{variables['astro_university']} \t Astro University \n"
+            f"+{variables['heightened_intelligence']} \t Heightened Intelligence \n"
+            f"+{variables['research_lab']} \t Research Lab \n"
+            f"+{variables['supercomputer']} \t Super Computer \n"
+            f"+{variables['galactic_cybernet']} \t Galactic Cybernet \n"
+            f"+{variables['morale_bonus']} \t Morale Bonus \n"
+            f"+{variables['government_bonus']} \t Government Bonus \n"
+            f"-{variables['gravity_penalty']} \t Gravity Penalty \n"
+            f"+{variables['research_lab_building']} \t Research Lab \n"
+            f"+{variables['supercomputer_building']} \t Super Computer \n"
+            f"+{variables['autolab_building']} \t Autolab \n"
+            f"+{variables['galactic_cybernet_building']} \t Galactic Cybernet \n\n"
+            f"+{self.colony.rp} \t Total RP \n"
+        )
+        return output
+
+
+class FoodVariables(PopUpWindow):
+    def update_text(self):
+        self.colony.food
+        variables = self.colony.food_variables
+
+        output = (
+            f"{self.colony.name.capitalize()} \n\n"
+            f"+{variables['base_food_from_farmers']} \t Base Food From Farmers \n"
+            f"+{variables['soil_enrichment']} \t Soil Enrichment \n"
+            f"+{variables['biomorphic_fungi']} \t Biomorphic Fungi \n"
+            f"+{variables['weather_controller']} \t Weather Controller \n"
+            f"+{variables['astro_university']} \t Astro University \n"
+            f"+{variables['moral_bonus']} \t Moral Bonus \n"
+            f"-{variables['gravity_penalty']} \t Gravity Penalty \n"
+            f"+{variables['hydroponic_farm']} \t Hydroponic Farm \n"
+            f"+{variables['subterranean_farm']} \t Subterranean Farm \n"
+            f"-{self.colony.current_population} \t Colony Population \n\n"
+        )
+
+        sign = '+' if self.colony.food >= 0 else ''
+        output += sign + f"{self.colony.food} \t Net Food \n"
+
+        return output
+
+
+class ProductionVariables(PopUpWindow):
+    def update_text(self):
+        self.colony.production
+        variables = self.colony.production_variables
+
+        output = (
+            f"{self.colony.name.capitalize()} \n\n"
+            f"+{variables['base_worker_production']} \t Base Worker Production \n"
+            f"+{variables['astro_university']} \t Astro University \n"
+            f"+{variables['microlite_construction']} \t Microlite Construction \n"
+            f"+{variables['automated_factory']} \t Automated Factory \n"
+            f"+{variables['robominer_plant']} \t Robominer Plant \n"
+            f"+{variables['deep_core_mine']} \t Deep Core Mine \n"
+            f"-{variables['gravity_penalty']} \t Gravity Penalty \n"
+            f"+{variables['morale_bonus']} \t Morale Bonus \n"
+            f"+{variables['robotic_factory']} \t Robotic Factory \n"
+            f"-{variables['pollution_penalty']} \t Pollution Penalty \n"
+            f"+{variables['automated_factory_building']} \t Automated Factory Building \n"
+            f"+{variables['robominer_plant_building']} \t Robominer Plant Building \n"
+            f"+{variables['deep_core_mine_building']} \t Deep Core Mine Building \n"
+            f"+{variables['recyclotron']} \t Recyclotron \n\n"
+            f"+{self.colony.production} \t Total Production \n"
+        )
+
+        return output
+
+
+class Pollution(PopUpWindow):
+    def update_text(self):
+        self.colony.production
+        variables = self.colony.production_variables
+        nano_disasemblers = self.game.achievements['nanoDisassemblers']
+
+        if self.colony.buildings['coreWasteDump']:
+            output = (
+                f"{self.colony.name.capitalize()} \n\n"
+                "0 \t Total Pollution"
+            )
+        else:
+            output = (
+                f"{self.colony.name.capitalize()} \n\n"
+                f"{nano_disasemblers} \t Nano Disassemblers \n\n"
+
+                f"{variables['polluting_production']} \t Polluting Production \n"
+                f"{variables['pollution_reduction_multiplier']} \t Pollution Reduction Multiplier \n"
+                f"{self.colony.planet_pollution_tolerance} \t Planet Pollution Tolerance \n\n"
+
+                f"{variables['pollution_penalty']} \t Pollution Penalty \n"
+            )
+
+        return output
+
+
+class Morale(PopUpWindow):
+    def update_text(self):
+        output = (
+            f"+{.2 * self.colony.buildings['holoSimulator']} \t Holo Simulator \n"
+            f"+{.3 * self.colony.buildings['pleasureDome']} \t Pleasure Dome \n"
+            f"+{.2 * self.game.achievements['realityNetwork']} \t Virtual Reality Network \n\n"
+            f"{self.colony.morale_multiplier} \t Morale Multiplier \n"
+        )
+
+        return output
+
+
 class GUI(tk.Tk):
     def __init__(self, game):
         tk.Tk.__init__(self)
 
         self.title(string='MOO2 GUI')
-        self.custom_font = tkFont.Font(family="Helvetica", size=9)
+        self.custom_font = tkFont.Font(family="consolas", size=9)
 
         self.game = game
 
@@ -320,8 +528,6 @@ class GUI(tk.Tk):
 
         self.colony_info2 = ColonyInfo2(
             self,
-            game.colonies[0],
-            font=self.custom_font
         )
 
         self.colony_info3 = ColonyInfo3(
@@ -373,10 +579,6 @@ class GUI(tk.Tk):
                     '<Enter>',
                     lambda event, x=colony_row: self.select_colony_row(event, x)
                 )
-                widget.bind(
-                    '<FocusIn>',
-                    lambda event, x=colony_row: self.select_colony_row(event, x)
-                )
         # bind the t-key to the turn button
         self.bind('t', lambda event: self.turn())
 
@@ -385,6 +587,9 @@ class GUI(tk.Tk):
             '<Enter>',
             lambda event: self.nametowidget(event.widget).focus()
         )
+
+        # ask for quiting application
+        self.protocol("WM_DELETE_WINDOW", self.prevent_close)
 
         # set traces/ commands
 
@@ -417,11 +622,12 @@ class GUI(tk.Tk):
         self.mainloop()
 
     def select_colony_row(self, event, colony_row):
-        self.colony_row_selected = colony_row
+        if event.state != 1:
+            self.colony_row_selected = colony_row
 
-        self.colony_info1.update_label(colony_row.colony)
-        self.colony_info2.update_label(colony_row.colony)
-        self.colony_info3.update_label(colony_row.colony)
+            self.colony_info1.update_label(colony_row.colony)
+            self.colony_info2.update_label()
+            self.colony_info3.update_label(colony_row.colony)
 
     def set_build_queue(self, w, x, y, colony):
         text_variable = self.colony_row_selected.build_queue.text_variable
@@ -471,7 +677,7 @@ class GUI(tk.Tk):
 
         # update info labels
         self.colony_info1.update_label(colony)
-        self.colony_info2.update_label(colony)
+        self.colony_info2.update_label()
         self.game_info.update_label(self.game)
 
         # Update the ranges of the other spinboxes and update the unassigned
@@ -492,6 +698,25 @@ class GUI(tk.Tk):
             unassigned_label['text'] -= 1
 
         selected_spinbox.previous_value = selected_spinbox.value.get()
+
+    def prevent_close(self):
+        window = tk.Toplevel()
+        label = tk.Label(master=window, font=self.custom_font,
+                         text="Are you sure you want to quit?")
+        label.pack()
+
+        yes_button = tk.Button(master=window, font=self.custom_font,
+                               text="Yes", command=self.destroy)
+        yes_button.pack()
+
+        no_button = tk.Button(master=window, font=self.custom_font,
+                              text="No", command=window.destroy)
+        no_button.pack()
+
+        window.bind('y', lambda event: self.destroy())
+        window.bind('n', lambda event: window.destroy())
+
+        window.mainloop()
 
     def turn(self):
         self.turn_button.focus()
@@ -514,13 +739,20 @@ class GUI(tk.Tk):
                 for spinbox in colony_row.spinboxes:
                     spinbox['to'] += colony.unassigned
 
-            # if the population of the colony decreased, decrease the spinbox
-            # values until they sum to the colony's population
+            # if the population of the colony decreased,
             if colony.current_population < colony.previous_population:
                 for spinbox in colony_row.spinboxes:
-                    number_of_colonists = getattr(colony, spinbox.colonist_type)
+                    if spinbox.colonist_type == 'farmer':
+                        number_of_colonists = colony.num_farmers
+
+                    elif spinbox.colonist_type == 'worker':
+                        number_of_colonists = colony.num_workers
+
+                    elif spinbox.colonist_type == 'scientist':
+                        number_of_colonists = colony.num_scientists
+
                     spinbox['to'] = number_of_colonists
-                    spinbox.text_variable.set(number_of_colonists)
+                    spinbox.value.set(number_of_colonists)
 
             if colony.build_queue is None:
                 colony_row.build_queue.update_choices()
@@ -534,7 +766,7 @@ class GUI(tk.Tk):
         # update info windows
         colony_selected = self.colony_row_selected.colony
         self.colony_info1.update_label(colony_selected)
-        self.colony_info2.update_label(colony_selected)
+        self.colony_info2.update_label()
         self.colony_info3.update_label(colony_selected)
         self.research_info.update_labels()
         self.game_info.update_label(self.game)
