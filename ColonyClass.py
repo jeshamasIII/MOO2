@@ -69,11 +69,6 @@ class Colony(Planet):
     }
 
     # maintenance costs penalties for each climate type
-    climate_cost_map = {
-        'gaia': 0, 'terran': 0, 'arid': 0, 'swamp': 0, 'ocean': 0,
-        'tundra': 0, 'desert': .25, 'barren': 0, 'radiated': .25, 'toxic': .5
-    }
-
     def __init__(self, planet, name, num_farmers,
                  num_workers, num_scientists, initial_buildings,
                  build_queue='tradeGoods'):
@@ -138,8 +133,15 @@ class Colony(Planet):
         # food imported with freighters
         self.imported_food = 0
 
-        # number of production points used to clean up pollution in colony
-        self.pollution_penalty = 0
+        self.bc_variables = None
+        self.rp_variables = None
+        self.food_variables = None
+        self.production_variables = None
+
+    climate_cost_map = {
+        'gaia': 0, 'terran': 0, 'arid': 0, 'swamp': 0, 'ocean': 0,
+        'tundra': 0, 'desert': .25, 'barren': 0, 'radiated': .25, 'toxic': .5
+    }
 
     @property
     def available_buildings(self):
@@ -205,162 +207,180 @@ class Colony(Planet):
 
     @property
     def food(self):
-        output = self.num_farmers * self.farming_multiplier
+        base_food_from_farmers = self.num_farmers * self.farming_multiplier
 
-        # soil enrichment
-        if self.buildings['soilEnrichment']:
-            output += self.num_farmers
+        soil_enrichment = self.num_farmers * self.buildings['soilEnrichment']
 
-        # biomorphic fungi
-        if self.game.achievements['biomorphicFungi']:
-            output += self.num_farmers
+        biomorphic_fungi = \
+            self.num_farmers * self.game.achievements['biomorphicFungi']
 
-        # weather controller
-        if self.buildings['weatherController']:
-            output += 2 * self.num_farmers
+        weather_controller = 2 * self.num_farmers * self.buildings['weatherController']
 
-        # astro university
-        if self.buildings['astroUniversity']:
-            output += self.num_farmers
+        astro_university = self.num_farmers * self.buildings['astroUniversity']
 
-        # gravity penalty and morale bonus
-        output += output * (self.morale_multiplier - self.gravity_multiplier)
+        total_food_from_farmers = (base_food_from_farmers
+                                   + soil_enrichment
+                                   + biomorphic_fungi
+                                   + weather_controller
+                                   + astro_university)
 
-        # hydroponic farm
-        output += 2 * self.buildings['hydroponicFarm']
+        moral_bonus = total_food_from_farmers * self.morale_multiplier
 
-        # subterranean farm
-        output += 4 * self.buildings['subterraneanFarms']
+        gravity_penalty = total_food_from_farmers * self.gravity_multiplier
 
-        # return output rounded to nearest integer
-        return nearest_integer(output) - self.current_population
+        hydroponic_farm = 2 * self.buildings['hydroponicFarm']
+
+        subterranean_farm = 4 * self.buildings['subterraneanFarms']
+
+        self.food_variables = locals()
+
+        return nearest_integer(total_food_from_farmers
+                               + moral_bonus
+                               - gravity_penalty
+                               + subterranean_farm
+                               + hydroponic_farm
+                               - self.current_population)
 
     @property
     def production(self):
-        worker_production = self.num_workers * self.production_multiplier
-        from_buildings = 0
+        base_worker_production = self.num_workers * self.production_multiplier
 
-        # astro university
-        if self.buildings['astroUniversity']:
-            worker_production += self.num_workers
+        astro_university = self.num_workers * self.buildings['astroUniversity']
 
-        # microlite construction
-        if self.game.achievements['microliteConstruction']:
-            worker_production += self.num_workers
+        microlite_construction = \
+            self.num_workers * self.game.achievements['microliteConstruction']
 
-        # automated factory
-        if self.buildings['automatedFactory']:
-            worker_production += self.num_workers
-            from_buildings += 5
+        automated_factory = self.num_workers * self.buildings['automatedFactory']
+        automated_factory_building = 5 * self.buildings['automatedFactory']
 
-        # robo miner plant
-        if self.buildings['roboMinerPlant']:
-            worker_production += 2 * self.num_workers
-            from_buildings += 10
+        robominer_plant = 2 * self.num_workers * self.buildings['roboMinerPlant']
+        robominer_plant_building = 10 * self.buildings['roboMinerPlant']
 
-        # deep core mine
-        if self.buildings['deepCoreMine']:
-            worker_production += 3 * self.num_workers
-            from_buildings += 15
+        deep_core_mine = 3 * self.num_workers * self.buildings['deepCoreMine']
+        deep_core_mine_building = 15 * self.buildings['deepCoreMine']
 
-        # gravity penalty and morale bonus
-        worker_production += (worker_production
-                              * (self.morale_multiplier - self.gravity_multiplier))
+        total_worker_production = (base_worker_production
+                                   + astro_university
+                                   + microlite_construction
+                                   + automated_factory
+                                   + robominer_plant
+                                   + deep_core_mine)
 
-        # robotic factory (included in pollution penalty)
-        if self.buildings['roboticFactory']:
-            worker_production += Colony.robotic_factory_map[self.mineral_richness]
+        gravity_penalty = total_worker_production * self.gravity_multiplier
+        morale_bonus = total_worker_production * self.morale_multiplier
 
-        # round worker output to nearest integer before computing pollution
-        worker_production = nearest_integer(worker_production)
+        robotic_factory = (
+                self.buildings['roboticFactory']
+                * Colony.robotic_factory_map[self.mineral_richness]
+        )
+
+
+        # production used to calculate pollution penalty
+        polluting_production = nearest_integer(total_worker_production
+                                               + morale_bonus
+                                               - gravity_penalty
+                                               + robotic_factory)
 
         # pollution processor, atmosphere renewer multiplier
-
-        pollution_processor_bonus = .5 if self.buildings['pollutionProcessor'] else 1
-        atmosphere_renewer_bonus = .25 if self.buildings['atmosphereRenewer'] else 1
+        pollution_processor_multiplier = \
+            .5 if self.buildings['pollutionProcessor'] else 1
+        atmosphere_renewer_multiplier = \
+            .25 if self.buildings['atmosphereRenewer'] else 1
         pollution_reduction_multiplier \
-            = pollution_processor_bonus * atmosphere_renewer_bonus
+            = pollution_processor_multiplier * atmosphere_renewer_multiplier
 
-        # subtract pollution penalty
+        # calculate pollution penalty
         if self.buildings['coreWasteDump']:
-            self.pollution_penalty = 0
+            pollution_penalty = 0
         else:
-            self.pollution_penalty = ceil(
-                max(0, (worker_production
+            pollution_penalty = ceil(
+                max(0, (polluting_production
                         * pollution_reduction_multiplier
                         - self.planet_pollution_tolerance)) / 2
             )
-            worker_production -= self.pollution_penalty
 
         # bonus from recyclotron
-        from_buildings += self.current_population * self.buildings['recyclotron']
+        recyclotron = self.current_population * self.buildings['recyclotron']
 
-        return worker_production + from_buildings
+        production_from_buildings = (automated_factory_building
+                                     + robominer_plant_building
+                                     + deep_core_mine_building
+                                     + recyclotron)
+
+        self.production_variables = locals()
+
+        return (polluting_production
+                - pollution_penalty
+                + production_from_buildings)
 
     @property
     def rp(self):
-        from_scientists = self.num_scientists * self.rp_multiplier
-        from_buildings = 0
+        base_research = self.num_scientists * self.rp_multiplier
 
-        # astro university
-        if self.buildings['astroUniversity']:
-            from_scientists += self.num_scientists
+        astro_university = self.num_scientists * self.buildings['astroUniversity']
 
-        # heightened intelligence
-        if self.game.achievements['heightenedIntelligence']:
-            from_scientists += self.num_scientists
+        heightened_intelligence = \
+            self.num_scientists * self.game.achievements['heightenedIntelligence']
 
-        # research lab
-        if self.buildings['researchLab']:
-            from_scientists += self.num_scientists
-            from_buildings += 5
+        research_lab = self.num_scientists * self.buildings['researchLab']
+        research_lab_building = 5 * self.buildings['researchLab']
 
-        # supercomputer
-        if self.buildings['supercomputer']:
-            from_scientists += 2 * self.num_scientists
-            from_buildings += 10
+        supercomputer = 2 * self.num_scientists * self.buildings['supercomputer']
+        supercomputer_building = 10 * self.buildings['supercomputer']
 
-        # autolab
-        if self.buildings['autolab']:
-            from_buildings += 30
+        autolab_building = 30 * self.buildings['autolab']
 
-        # galacticCybernet
-        if self.buildings['galacticCybernet']:
-            from_scientists += 3 * self.num_scientists
-            from_buildings += 15
+        galactic_cybernet = \
+            3 * self.num_scientists * self.buildings['galacticCybernet']
 
-        # morale, gravity, and gov bonus
-        from_scientists += from_scientists * (self.morale_multiplier
-                                              + self.game.government_bonus
-                                              - self.gravity_multiplier)
+        galactic_cybernet_building = 15 * self.buildings['galacticCybernet']
 
-        return nearest_integer(from_scientists + from_buildings)
+        from_scientists = (base_research
+                           + research_lab
+                           + supercomputer
+                           + heightened_intelligence
+                           + astro_university
+                           + galactic_cybernet)
+
+        morale_bonus = from_scientists * self.morale_multiplier
+
+        government_bonus = from_scientists * self.game.government_bonus
+
+        gravity_penalty = from_scientists * self.gravity_multiplier
+
+        from_buildings = (research_lab_building
+                          + supercomputer_building
+                          + autolab_building
+                          + galactic_cybernet_building)
+
+        self.rp_variables = locals()
+
+        return nearest_integer(
+            from_scientists
+            + morale_bonus
+            + government_bonus
+            - gravity_penalty
+            + from_buildings
+        )
 
     @property
     def bc(self):
         # taxes collected from colonists
         taxes_collected = self.bc_multiplier * self.current_population
 
-        # morale bonus
         morale_bonus = nearest_integer(taxes_collected * self.morale_multiplier)
 
-        # spaceport bonus
         spaceport_bonus = int(taxes_collected * .5) * self.buildings['spaceport']
 
-        # stock exchange bonus
         stock_exchange_bonus = taxes_collected * self.buildings['stockExchange']
 
-        # galactic currency exchange bonus
         currency_exchange_bonus = (self.game.achievements['currencyExchange']
                                    * int(taxes_collected * .5))
 
-        # government bonus
         government_bonus = int(taxes_collected * self.game.government_bonus)
 
-        # tradegoods
         tradegoods = (self.build_queue == 'tradeGoods') * ceil(.5 * self.production)
 
-        # total income produced by colony
         total_income = (taxes_collected
                         + morale_bonus
                         + spaceport_bonus
@@ -369,13 +389,13 @@ class Colony(Planet):
                         + government_bonus
                         + tradegoods)
 
-        # maintenance and climate costs will be subtracted from total income
-
         maintenance_cost = sum(building_data[b].maintenance for b
                                in building_data if self.buildings[b])
 
         climate_cost = nearest_integer(maintenance_cost
                                        * Colony.climate_cost_map[self.climate])
+
+        self.bc_variables = locals()
 
         return total_income - maintenance_cost - climate_cost
 
